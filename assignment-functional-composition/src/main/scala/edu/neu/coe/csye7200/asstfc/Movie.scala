@@ -102,7 +102,95 @@ object Movie extends App {
   object MoviesProtocol extends DefaultJsonProtocol {
     // 20 points
     // TO BE IMPLEMENTED
-    ???
+    implicit val formatFormat = jsonFormat4(Format.apply)
+    implicit val productionFormat = jsonFormat4(Production.apply)
+    // implicit val reviewsFormat = jsonFormat(Reviews.apply)
+    // implicit val principleFormat = jsonFormat2(Principal.apply)
+    implicit val nameFormat = jsonFormat4(Name.apply)
+    implicit val ratingFormat = jsonFormat2(Rating.apply)
+
+    /**
+      * serialize and deserialize reviews
+      */
+    implicit object reviewJsonFormat extends RootJsonFormat[Reviews] {
+      override def write(obj: Reviews): JsValue = JsObject(
+        "imdbScore" -> JsNumber(obj.imdbScore),
+        "facebookLikes" -> JsNumber(obj.facebookLikes),
+        "contentRating" -> obj.contentRating.toJson,
+        "numUsersReview" -> JsNumber(obj.numUsersReview),
+        "numUsersVoted" -> JsNumber(obj.numUsersVoted),
+        "numCriticReviews" -> JsNumber(obj.numCriticReviews),
+        "totalFacebookLikes" -> JsNumber(obj.totalFacebookLikes)
+      )
+
+      override def read(json: JsValue): Reviews =
+        json.asJsObject.getFields("imdbScore", "facebookLikes", "contentRating", "numUsersReview", "numUsersVoted", "numCriticReviews", "totalFacebookLikes") match {
+          case Seq(JsNumber(imdbScore), JsNumber(facebookLikes), JsObject(contentRating), JsNumber(numUsersReview), JsNumber(numUsersVoted), JsNumber(numCriticReviews), JsNumber(totalFacebookLikes)) =>
+            new Reviews(imdbScore.toDouble, facebookLikes.toInt, JsObject(contentRating).convertTo[Rating], numUsersReview.toInt, numUsersVoted.toInt, numCriticReviews.toInt, totalFacebookLikes.toInt)
+          case _ => deserializationError("reviews deserializationError")
+        }
+    }
+
+    /**
+      * serialize and deserialize principals
+      */
+    implicit object principalFormat extends RootJsonFormat[Principal] {
+      override def write(obj: Principal): JsValue = JsObject(
+        "name" -> obj.name.toJson,
+        "facebookLikes" -> JsNumber(obj.facebookLikes)
+      )
+
+      override def read(json: JsValue): Principal = json.asJsObject.getFields("name", "facebookLikes") match {
+        case Seq(JsObject(name), JsNumber(facebookLikes)) =>
+          new Principal(JsObject(name).convertTo[Name], facebookLikes.toInt)
+        case _ => deserializationError("principal deserializationError")
+      }
+    }
+
+
+    /**
+      * serialize and deserialize movies
+      */
+    implicit object movieJsonFormat extends RootJsonFormat[Movie] {
+      override def write(obj: Movie): JsValue = JsObject(
+        "format" -> obj.format.toJson,
+        "production" -> obj.production.toJson,
+        "reviews" -> obj.reviews.toJson,
+        "director" -> obj.director.toJson,
+        "actor1" -> obj.actor1.toJson,
+        "actor2" -> obj.actor2.toJson,
+        "actor3" -> obj.actor3.toJson,
+        "title" -> JsString(obj.title),
+        "genres" -> obj.genres.toJson,
+        "plotKeywords" -> obj.plotKeywords.toJson,
+        "imdb" -> JsString(obj.imdb)
+
+      )
+
+      override def read(json: JsValue): Movie = {
+        json.asJsObject.getFields("format", "production", "reviews", "director", "actor1", "actor2", "actor3", "title", "genres", "plotKeywords", "imdb") match {
+          case Seq(JsObject(format), JsObject(production), JsObject(reviews), JsObject(director), JsObject(actor1), JsObject(actor2), JsObject(actor3), JsString(title), JsArray(genres), JsArray(plotKeywords), JsString(imdb)) => {
+            Movie(
+              JsObject(format).convertTo[Format],
+              JsObject(production).convertTo[Production],
+              JsObject(reviews).convertTo[Reviews],
+              JsObject(director).convertTo[Principal],
+              JsObject(actor1).convertTo[Principal],
+              JsObject(actor2).convertTo[Principal],
+              JsObject(actor3).convertTo[Principal],
+              JsString(title).convertTo[String],
+              JsArray(genres).convertTo[Seq[String]],
+              JsArray(plotKeywords).convertTo[Seq[String]],
+              JsString(imdb).convertTo[String])
+          }
+          case _ => throw new Exception(s"logic error in Format:")
+        }
+      }
+    }
+
+    def serialization(m: Movie) = m.toJson
+
+    def deSerilization(json: JsValue) = json.convertTo[Movie]
   }
 
   implicit object IngestibleMovie extends IngestibleMovie
@@ -122,8 +210,13 @@ object Movie extends App {
   //Hint: Serialize the input to Json format and deserialize back to Object, check the result is still equal to original input.
   def testSerializationAndDeserialization(ms: Seq[Movie]): Boolean = {
     // 5 points
-    // TO BE IMPLEMENTED
-    ???
+    println(ms)
+    for (m <- ms) {
+      val json = MoviesProtocol.serialization(m)
+      val movie = MoviesProtocol.deSerilization(json)
+      if (!m.equals(movie)) return false
+    }
+    true
   }
 
   def getMoviesFromCountry(country: String, movies: Iterator[Try[Movie]]): Try[Seq[Movie]] = {
